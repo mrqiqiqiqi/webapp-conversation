@@ -5,6 +5,7 @@ import {
   PencilSquareIcon,
 } from '@heroicons/react/24/solid'
 import AppIcon from '@/app/components/base/app-icon'
+import LanguageSelector from '@/app/components/language-selector'
 export interface IHeaderProps {
   title: string
   isMobile?: boolean
@@ -33,12 +34,14 @@ const Header: FC<IHeaderProps> = ({
         <AppIcon size="small" />
         <div className=" text-sm text-gray-800 font-bold">{title}</div>
       </div>
-      {isMobile
-        ? (
+      <div className='flex items-center space-x-2'>
+        <LanguageSelector />
+        {isMobile && (
           <div className='flex items-center justify-center h-8 w-8 cursor-pointer' onClick={() => onCreateNewChat?.()} >
             <PencilSquareIcon className="h-4 w-4 text-gray-500" />
-          </div>)
-        : <div></div>}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

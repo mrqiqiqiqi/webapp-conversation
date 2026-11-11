@@ -18,6 +18,7 @@ import { setLocaleOnClient } from '@/i18n/client'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import Loading from '@/app/components/base/loading'
 import { replaceVarWithValues, userInputsFormToPromptVariables } from '@/utils/prompt'
+import { getUserLanguage, USER_LANGUAGE_KEY } from '@/utils/user-language'
 import AppUnavailable from '@/app/components/app-unavailable'
 import { API_KEY, APP_ID, APP_INFO, isShowPrompt, promptTemplate } from '@/config'
 import type { Annotation as AnnotationType } from '@/types/log'
@@ -255,7 +256,9 @@ const Main: FC<IMainProps> = () => {
             suggested_questions,
           })
         }
+        // user_language 由头部语言选择器维护，不在表单里展示
         const prompt_variables = userInputsFormToPromptVariables(user_input_form)
+          .filter(item => item.key !== USER_LANGUAGE_KEY)
         setPromptConfig({
           prompt_template: promptTemplate,
           prompt_variables,
@@ -307,7 +310,7 @@ const Main: FC<IMainProps> = () => {
     let emptyRequiredInput = false
     promptConfig.prompt_variables.forEach((item) => {
       if (item.required && !currInputs[item.key])
-        emptyRequiredInput = true
+      { emptyRequiredInput = true }
     })
 
     if (emptyRequiredInput) {
@@ -372,6 +375,8 @@ const Main: FC<IMainProps> = () => {
         else { toServerInputs[key] = value }
       })
     }
+    // 每次发消息都带上当前选择的语言，切换立即生效
+    toServerInputs.user_language = getUserLanguage()
 
     const data: Record<string, any> = {
       inputs: toServerInputs,
