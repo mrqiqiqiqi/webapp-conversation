@@ -19,3 +19,7 @@ export const API_PREFIX = '/api'
 export const LOCALE_COOKIE_NAME = 'locale'
 
 export const DEFAULT_VALUE_MAX_LEN = 48
+
+// 渠道号：随每条消息写入 inputs，变量名可通过 NEXT_PUBLIC_CHANNEL_VAR 对齐 Dify 开始节点
+export const CHANNEL_VAR = `${process.env.NEXT_PUBLIC_CHANNEL_VAR || 'channel_no'}`
+export const CHANNEL_NO = `${process.env.NEXT_PUBLIC_CHANNEL_NO || '6'}`

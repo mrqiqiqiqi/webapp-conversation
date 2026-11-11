@@ -18,9 +18,9 @@ import { setLocaleOnClient } from '@/i18n/client'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import Loading from '@/app/components/base/loading'
 import { replaceVarWithValues, userInputsFormToPromptVariables } from '@/utils/prompt'
-import { getUserLanguage, USER_LANGUAGE_KEY } from '@/utils/user-language'
+import { getUserLanguage, autoDetectLanguage, USER_LANGUAGE_KEY } from '@/utils/user-language'
 import AppUnavailable from '@/app/components/app-unavailable'
-import { API_KEY, APP_ID, APP_INFO, isShowPrompt, promptTemplate } from '@/config'
+import { API_KEY, APP_ID, APP_INFO, CHANNEL_NO, CHANNEL_VAR, isShowPrompt, promptTemplate } from '@/config'
 import type { Annotation as AnnotationType } from '@/types/log'
 import { addFileInfos, sortAgentSorts } from '@/utils/tools'
 
@@ -156,6 +156,11 @@ const Main: FC<IMainProps> = () => {
   }
   useEffect(handleConversationSwitch, [currConversationId, inited])
 
+  // 浏览器语言不可识别时，按访问者 IP 国家兜底一次语言
+  useEffect(() => {
+    autoDetectLanguage()
+  }, [])
+
   const handleConversationIdChange = (id: string) => {
     if (id === '-1') {
       createNewChat()
@@ -256,9 +261,9 @@ const Main: FC<IMainProps> = () => {
             suggested_questions,
           })
         }
-        // user_language 由头部语言选择器维护，不在表单里展示
+        // user_language、渠道号由前端维护，不在表单里展示
         const prompt_variables = userInputsFormToPromptVariables(user_input_form)
-          .filter(item => item.key !== USER_LANGUAGE_KEY)
+          .filter(item => item.key !== USER_LANGUAGE_KEY && item.key !== CHANNEL_VAR)
         setPromptConfig({
           prompt_template: promptTemplate,
           prompt_variables,
@@ -375,8 +380,9 @@ const Main: FC<IMainProps> = () => {
         else { toServerInputs[key] = value }
       })
     }
-    // 每次发消息都带上当前选择的语言，切换立即生效
+    // 每次发消息都带上当前选择的语言和渠道号，切换立即生效
     toServerInputs.user_language = getUserLanguage()
+    toServerInputs[CHANNEL_VAR] = CHANNEL_NO
 
     const data: Record<string, any> = {
       inputs: toServerInputs,

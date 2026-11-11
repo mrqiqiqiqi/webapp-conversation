@@ -39,6 +39,37 @@ export const setUserLanguage = (language: UserLanguage) => {
   window.dispatchEvent(new CustomEvent(USER_LANGUAGE_CHANGED_EVENT, { detail: language }))
 }
 
+// IP 国家码兜底映射：浏览器语言不在支持列表内时，按访问者所在国家推断
+const COUNTRY_TO_LANGUAGE: Record<string, UserLanguage> = {
+  CN: 'zh',
+  RU: 'ru',
+  BR: 'pt-BR',
+}
+
+const countryToLanguage = (country: string): UserLanguage => {
+  return COUNTRY_TO_LANGUAGE[country.toUpperCase()] || 'en-US'
+}
+
+// 语言判定优先级：手动选择 > 浏览器语言 > IP 国家 > 中文。
+// 浏览器语言已可识别时不发请求；否则向前端服务要一次访问者国家（Vercel 自带请求头）。
+export const autoDetectLanguage = () => {
+  if (typeof window === 'undefined') { return }
+  if (window.localStorage.getItem(USER_LANGUAGE_KEY)) { return }
+
+  const browserMatched = isValidUserLanguage(window.navigator.language)
+    || USER_LANGUAGE_OPTIONS.some(option => (window.navigator.language || '').toLowerCase().startsWith(option.value.toLowerCase().split('-')[0]))
+  if (browserMatched) { return }
+
+  fetch('/api/locale')
+    .then(res => res.json())
+    .then(({ country }: { country?: string }) => {
+      if (window.localStorage.getItem(USER_LANGUAGE_KEY)) { return }
+      if (!country) { return }
+      setUserLanguage(countryToLanguage(country))
+    })
+    .catch(() => { /* 检测失败保持中文默认 */ })
+}
+
 // 服务端渲染时先用固定值，挂载后再读真实值，避免水合不一致
 export const useUserLanguage = (): [UserLanguage, (language: UserLanguage) => void] => {
   const [language, setLanguageState] = useState<UserLanguage>('zh')
