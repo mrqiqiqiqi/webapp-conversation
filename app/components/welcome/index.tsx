@@ -5,8 +5,11 @@ import { useTranslation } from 'react-i18next'
 import TemplateVarPanel, { PanelTitle, VarOpBtnGroup } from '../value-panel'
 import FileUploaderInAttachmentWrapper from '../base/file-uploader-in-attachment'
 import s from './style.module.css'
-import { AppInfoComp, ChatBtn, EditBtn, FootLogo, PromptTemplate } from './massive-component'
+import { AppInfoComp, EditBtn, FootLogo, PromptTemplate } from './massive-component'
 import type { AppInfo, PromptConfig } from '@/types/app'
+import { useUserLanguage } from '@/utils/user-language'
+import { getProductLineLabel, PRODUCT_LINES } from '@/utils/product-line'
+import type { ProductLine } from '@/utils/product-line'
 import Toast from '@/app/components/base/toast'
 import Select from '@/app/components/base/select'
 import { DEFAULT_VALUE_MAX_LEN } from '@/config'
@@ -21,6 +24,8 @@ export interface IWelcomeProps {
   siteInfo: AppInfo
   promptConfig: PromptConfig
   onStartChat: (inputs: Record<string, any>) => void
+  // 产品线入口：进入对话并自动发送该产品线的默认消息
+  onStartChatAndSend?: (inputs: Record<string, any>, message: string) => void
   canEditInputs: boolean
   savedInputs: Record<string, any>
   onInputsChange: (inputs: Record<string, any>) => void
@@ -32,12 +37,13 @@ const Welcome: FC<IWelcomeProps> = ({
   isPublicVersion,
   siteInfo,
   promptConfig,
-  onStartChat,
+  onStartChatAndSend,
   canEditInputs,
   savedInputs,
   onInputsChange,
 }) => {
   const { t } = useTranslation()
+  const [userLanguage] = useUserLanguage()
   const hasVar = promptConfig.prompt_variables.length > 0
   const [isFold, setIsFold] = useState<boolean>(true)
   const [inputs, setInputs] = useState<Record<string, any>>((() => {
@@ -172,36 +178,56 @@ const Welcome: FC<IWelcomeProps> = ({
   }
 
   const canChat = () => {
-    const vars = promptConfig?.prompt_variables ?? [];
+    const vars = promptConfig?.prompt_variables ?? []
 
-    const hasEmptyRequired = vars.some(v => {
-      const isRequired = v?.required ?? true;
-      if (!isRequired) return false;
+    const hasEmptyRequired = vars.some((v) => {
+      const isRequired = v?.required ?? true
+      if (!isRequired) { return false }
 
-      const val = inputs?.[v.key];
+      const val = inputs?.[v.key]
 
-      if (typeof val === 'string') return val.trim() === '';
+      if (typeof val === 'string') { return val.trim() === '' }
 
-      return val === undefined || val === null;
-    });
-
-    if (hasEmptyRequired) {
-      logError(t('app.errorMessage.valueOfVarRequired'));
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleChat = () => {
-    if (!canChat()) { return }
-
-    Object.keys(inputs).forEach((key) => {
-      if (!inputs[key])
-        delete inputs[key]
+      return val === undefined || val === null
     })
 
-    onStartChat(inputs)
+    if (hasEmptyRequired) {
+      logError(t('app.errorMessage.valueOfVarRequired'))
+      return false
+    }
+
+    return true
+  }
+
+  // 选择产品线：进入对话并自动发送该产品线的默认消息
+  const handleSelectProductLine = (line: ProductLine) => {
+    if (!canChat()) { return }
+
+    const cleanedInputs = { ...inputs }
+    Object.keys(cleanedInputs).forEach((key) => {
+      if (!cleanedInputs[key])
+      { delete cleanedInputs[key] }
+    })
+
+    onStartChatAndSend?.(cleanedInputs, getProductLineLabel(line, userLanguage))
+  }
+
+  const renderProductLines = (className?: string) => {
+    return (
+      <div className={`grid grid-cols-1 mobile:grid-cols-2 gap-3 ${className || ''}`}>
+        {PRODUCT_LINES.map(line => (
+          <button
+            key={line.key}
+            type='button'
+            className='flex items-center justify-center space-x-2 px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-sm font-medium text-gray-700 cursor-pointer hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600'
+            onClick={() => handleSelectProductLine(line)}
+          >
+            <span aria-hidden='true'>{line.icon}</span>
+            <span>{getProductLineLabel(line, userLanguage)}</span>
+          </button>
+        ))}
+      </div>
+    )
   }
 
   const renderNoVarPanel = () => {
@@ -221,7 +247,7 @@ const Welcome: FC<IWelcomeProps> = ({
               </>
             }
           >
-            <ChatBtn onClick={handleChat} />
+            {renderProductLines()}
           </TemplateVarPanel>
         </div>
       )
@@ -234,7 +260,7 @@ const Welcome: FC<IWelcomeProps> = ({
           <AppInfoComp siteInfo={siteInfo} />
         }
       >
-        <ChatBtn onClick={handleChat} />
+        {renderProductLines()}
       </TemplateVarPanel>
     )
   }
@@ -248,10 +274,7 @@ const Welcome: FC<IWelcomeProps> = ({
         }
       >
         {renderInputs()}
-        <ChatBtn
-          className='mt-3 mobile:ml-0 tablet:ml-[128px]'
-          onClick={handleChat}
-        />
+        {renderProductLines('mt-3 mobile:ml-0 tablet:ml-[128px]')}
       </TemplateVarPanel>
     )
   }

@@ -93,6 +93,11 @@ const Main: FC<IMainProps> = () => {
     // parse variables in introduction
     setChatList(generateNewChatListWithOpenStatement('', inputs))
   }
+  // 选择产品线：先进入对话（开场白入列），再自动发送该产品线的默认消息
+  const handleStartChatWithMessage = (inputs: Record<string, any>, message: string) => {
+    handleStartChat(inputs)
+    setTimeout(() => { handleSend(message) }, 100)
+  }
   const hasSetInputs = (() => {
     if (!isNewConversation) { return true }
 
@@ -690,6 +695,7 @@ const Main: FC<IMainProps> = () => {
             siteInfo={APP_INFO}
             promptConfig={promptConfig}
             onStartChat={handleStartChat}
+            onStartChatAndSend={handleStartChatWithMessage}
             canEditInputs={canEditInputs}
             savedInputs={currInputs as Record<string, any>}
             onInputsChange={setCurrInputs}
