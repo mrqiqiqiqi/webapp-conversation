@@ -85,6 +85,8 @@ export interface IChatItem {
   useCurrentUserAvatar?: boolean
   isOpeningStatement?: boolean
   suggestedQuestions?: string[]
+  // 欢迎语：显示内容在渲染时按当前会话语言填入
+  isWelcomeMessage?: boolean
   log?: { role: string, text: string }[]
   agent_thoughts?: ThoughtItem[]
   message_files?: VisionFile[]

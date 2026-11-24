@@ -1,6 +1,6 @@
 'use client'
 import type { FC } from 'react'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import produce, { setAutoFreeze } from 'immer'
 import { useBoolean, useGetState } from 'ahooks'
@@ -17,9 +17,9 @@ import Chat from '@/app/components/chat'
 import { setLocaleOnClient } from '@/i18n/client'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import Loading from '@/app/components/base/loading'
-import { replaceVarWithValues, userInputsFormToPromptVariables } from '@/utils/prompt'
-import { getUserLanguage, autoDetectLanguage, USER_LANGUAGE_KEY } from '@/utils/user-language'
-import { getDefaultEntryMessage } from '@/utils/entry-message'
+import { userInputsFormToPromptVariables } from '@/utils/prompt'
+import { getUserLanguage, useUserLanguage, autoDetectLanguage, USER_LANGUAGE_KEY } from '@/utils/user-language'
+import { getWelcomeMessage, getSuggestedQuestions } from '@/utils/welcome-message'
 import AppUnavailable from '@/app/components/app-unavailable'
 import { API_KEY, APP_ID, APP_INFO, CHANNEL_NO, CHANNEL_VAR, isShowPrompt, promptTemplate } from '@/config'
 import type { Annotation as AnnotationType } from '@/types/log'
@@ -91,13 +91,7 @@ const Main: FC<IMainProps> = () => {
     setConversationIdChangeBecauseOfNew(true)
     setCurrInputs(inputs)
     setChatStarted()
-    // parse variables in introduction
-    setChatList(generateNewChatListWithOpenStatement('', inputs))
-  }
-  // 进入对话（开场白入列）后，自动发送导航咨询的默认消息
-  const handleStartChatWithMessage = (inputs: Record<string, any>, message: string) => {
-    handleStartChat(inputs)
-    setTimeout(() => { handleSend(message) }, 100)
+    setChatList(generateNewChatListWithOpenStatement())
   }
   const hasSetInputs = (() => {
     if (!isNewConversation) { return true }
@@ -135,7 +129,7 @@ const Main: FC<IMainProps> = () => {
     if (!isNewConversation && !conversationIdChangeBecauseOfNew && !isResponding) {
       fetchChatList(currConversationId).then((res: any) => {
         const { data } = res
-        const newChatList: ChatItem[] = generateNewChatListWithOpenStatement(notSyncToStateIntroduction, notSyncToStateInputs)
+        const newChatList: ChatItem[] = generateNewChatListWithOpenStatement()
 
         data.forEach((item: any) => {
           newChatList.push({
@@ -197,6 +191,19 @@ const Main: FC<IMainProps> = () => {
       }, 50)
     }
   }, [chatList, currConversationId])
+
+  const [userLanguage] = useUserLanguage()
+  // 欢迎语按当前会话语言显示，切换语言后立即生效
+  const displayedChatList = useMemo(() => chatList.map(item => (
+    item.isWelcomeMessage
+      ? {
+        ...item,
+        content: getWelcomeMessage(userLanguage),
+        suggestedQuestions: getSuggestedQuestions(userLanguage, item.suggestedQuestions),
+      }
+      : item
+  )), [chatList, userLanguage])
+
   // user can not edit inputs if user had send message
   const canEditInputs = !chatList.some(item => item.isAnswer === false) && isNewConversation
   const createNewChat = () => {
@@ -214,23 +221,19 @@ const Main: FC<IMainProps> = () => {
     }))
   }
 
-  // sometime introduction is not applied to state
-  const generateNewChatListWithOpenStatement = (introduction?: string, inputs?: Record<string, any> | null) => {
-    let calculatedIntroduction = introduction || conversationIntroduction || ''
-    const calculatedPromptVariables = inputs || currInputs || null
-    if (calculatedIntroduction && calculatedPromptVariables) { calculatedIntroduction = replaceVarWithValues(calculatedIntroduction, promptConfig?.prompt_variables || [], calculatedPromptVariables) }
-
-    const openStatement = {
-      id: `${Date.now()}`,
-      content: calculatedIntroduction,
-      isAnswer: true,
-      feedbackDisabled: true,
-      isOpeningStatement: isShowPrompt,
-      suggestedQuestions,
-    }
-    if (calculatedIntroduction) { return [openStatement] }
-
-    return []
+  // 欢迎语由前端按会话语言显示（见 utils/welcome-message.ts），不使用 Dify 应用里配置的开场白。
+  // 这里只生成欢迎语这一条消息，显示内容在渲染时按当前语言填入。
+  const generateNewChatListWithOpenStatement = () => {
+    return [
+      {
+        id: `${Date.now()}`,
+        content: '',
+        isAnswer: true,
+        feedbackDisabled: true,
+        isWelcomeMessage: true,
+        suggestedQuestions,
+      },
+    ]
   }
 
   // init
@@ -639,10 +642,10 @@ const Main: FC<IMainProps> = () => {
     })
   }
 
-  // 进入页面或新建对话时不显示选择界面：初始化完成、语言识别结束且处于新会话未开始状态时，直接进入导航咨询
+  // 进入页面或新建对话时不显示选择界面：初始化完成且处于新会话未开始状态时，直接进入对话
   const hasAutoEnteredRef = useRef(false)
   useEffect(() => {
-    if (!inited || !languageReady) { return }
+    if (!inited) { return }
 
     // 已进入对话后重置标记，下次新建对话时再次自动进入
     if (hasSetInputs) {
@@ -652,8 +655,8 @@ const Main: FC<IMainProps> = () => {
     // 防止同一次进入重复触发（开发模式下副作用会执行两次）
     if (hasAutoEnteredRef.current) { return }
     hasAutoEnteredRef.current = true
-    handleStartChatWithMessage({}, getDefaultEntryMessage(getUserLanguage()))
-  }, [inited, languageReady, hasSetInputs])
+    handleStartChat({})
+  }, [inited, hasSetInputs])
 
   const handleFeedback = async (messageId: string, feedback: Feedbacktype) => {
     await updateFeedback({ url: `/messages/${messageId}/feedbacks`, body: { rating: feedback.rating } })
@@ -725,7 +728,7 @@ const Main: FC<IMainProps> = () => {
             hasSetInputs && (
               <div className='relative grow pc:w-[794px] max-w-full mobile:w-full pb-[180px] mx-auto mb-3.5' ref={chatListDomRef}>
                 <Chat
-                  chatList={chatList}
+                  chatList={displayedChatList}
                   onSend={handleSend}
                   onFeedback={handleFeedback}
                   isResponding={isResponding}
