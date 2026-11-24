@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 // 会话语言：传给 Dify 工作流开始节点的 user_language 变量
-export type UserLanguage = 'zh' | 'en-US' | 'ru' | 'pt-BR'
+export type UserLanguage = 'zh' | 'en-US' | 'ru' | 'pt-BR' | 'tr' | 'pl'
 
 export const USER_LANGUAGE_KEY = 'user_language'
 export const USER_LANGUAGE_CHANGED_EVENT = 'user-language-changed'
@@ -11,6 +11,8 @@ export const USER_LANGUAGE_OPTIONS: { value: UserLanguage, label: string }[] = [
   { value: 'en-US', label: 'English' },
   { value: 'ru', label: 'Русский' },
   { value: 'pt-BR', label: 'Português' },
+  { value: 'tr', label: 'Türkçe' },
+  { value: 'pl', label: 'Polski' },
 ]
 
 export const isValidUserLanguage = (value: string | null | undefined): value is UserLanguage =>
@@ -23,6 +25,8 @@ const localeToLanguage = (locale: string): UserLanguage => {
   if (name.startsWith('en')) { return 'en-US' }
   if (name.startsWith('ru')) { return 'ru' }
   if (name.startsWith('pt')) { return 'pt-BR' }
+  if (name.startsWith('tr')) { return 'tr' }
+  if (name.startsWith('pl')) { return 'pl' }
   return 'zh'
 }
 
@@ -44,6 +48,8 @@ const COUNTRY_TO_LANGUAGE: Record<string, UserLanguage> = {
   CN: 'zh',
   RU: 'ru',
   BR: 'pt-BR',
+  TR: 'tr',
+  PL: 'pl',
 }
 
 const countryToLanguage = (country: string): UserLanguage => {

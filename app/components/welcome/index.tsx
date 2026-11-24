@@ -8,7 +8,7 @@ import s from './style.module.css'
 import { AppInfoComp, EditBtn, FootLogo, PromptTemplate } from './massive-component'
 import type { AppInfo, PromptConfig } from '@/types/app'
 import { useUserLanguage } from '@/utils/user-language'
-import { getProductLineLabel, PRODUCT_LINES } from '@/utils/product-line'
+import { getProductLineLabel, getProductLineMessage, PRODUCT_LINES } from '@/utils/product-line'
 import type { ProductLine } from '@/utils/product-line'
 import Toast from '@/app/components/base/toast'
 import Select from '@/app/components/base/select'
@@ -209,7 +209,7 @@ const Welcome: FC<IWelcomeProps> = ({
       { delete cleanedInputs[key] }
     })
 
-    onStartChatAndSend?.(cleanedInputs, getProductLineLabel(line, userLanguage))
+    onStartChatAndSend?.(cleanedInputs, getProductLineMessage(line, userLanguage))
   }
 
   const renderProductLines = (className?: string) => {
