@@ -271,9 +271,9 @@ const Main: FC<IMainProps> = () => {
             suggested_questions,
           })
         }
-        // user_language、渠道号由前端维护，不在表单里展示
+        // user_language、渠道号、产品线由前端维护，不在表单里展示
         const prompt_variables = userInputsFormToPromptVariables(user_input_form)
-          .filter(item => item.key !== USER_LANGUAGE_KEY && item.key !== CHANNEL_VAR)
+          .filter(item => item.key !== USER_LANGUAGE_KEY && item.key !== CHANNEL_VAR && item.key !== PRODUCT_LINE_VAR)
         setPromptConfig({
           prompt_template: promptTemplate,
           prompt_variables,
