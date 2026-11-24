@@ -19,6 +19,7 @@ import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import Loading from '@/app/components/base/loading'
 import { replaceVarWithValues, userInputsFormToPromptVariables } from '@/utils/prompt'
 import { getUserLanguage, autoDetectLanguage, USER_LANGUAGE_KEY } from '@/utils/user-language'
+import { getDefaultEntryMessage } from '@/utils/entry-message'
 import AppUnavailable from '@/app/components/app-unavailable'
 import { API_KEY, APP_ID, APP_INFO, CHANNEL_NO, CHANNEL_VAR, isShowPrompt, promptTemplate } from '@/config'
 import type { Annotation as AnnotationType } from '@/types/log'
@@ -93,7 +94,7 @@ const Main: FC<IMainProps> = () => {
     // parse variables in introduction
     setChatList(generateNewChatListWithOpenStatement('', inputs))
   }
-  // 选择产品线：先进入对话（开场白入列），再自动发送该产品线的默认消息
+  // 进入对话（开场白入列）后，自动发送导航咨询的默认消息
   const handleStartChatWithMessage = (inputs: Record<string, any>, message: string) => {
     handleStartChat(inputs)
     setTimeout(() => { handleSend(message) }, 100)
@@ -161,9 +162,10 @@ const Main: FC<IMainProps> = () => {
   }
   useEffect(handleConversationSwitch, [currConversationId, inited])
 
-  // 浏览器语言不可识别时，按访问者 IP 国家兜底一次语言
+  // 按访问者 IP 所在国家识别语言；识别结束（含失败、超时）前保持加载态
+  const [languageReady, setLanguageReady] = useState(false)
   useEffect(() => {
-    autoDetectLanguage()
+    autoDetectLanguage().finally(() => { setLanguageReady(true) })
   }, [])
 
   const handleConversationIdChange = (id: string) => {
@@ -637,6 +639,22 @@ const Main: FC<IMainProps> = () => {
     })
   }
 
+  // 进入页面或新建对话时不显示选择界面：初始化完成、语言识别结束且处于新会话未开始状态时，直接进入导航咨询
+  const hasAutoEnteredRef = useRef(false)
+  useEffect(() => {
+    if (!inited || !languageReady) { return }
+
+    // 已进入对话后重置标记，下次新建对话时再次自动进入
+    if (hasSetInputs) {
+      hasAutoEnteredRef.current = false
+      return
+    }
+    // 防止同一次进入重复触发（开发模式下副作用会执行两次）
+    if (hasAutoEnteredRef.current) { return }
+    hasAutoEnteredRef.current = true
+    handleStartChatWithMessage({}, getDefaultEntryMessage(getUserLanguage()))
+  }, [inited, languageReady, hasSetInputs])
+
   const handleFeedback = async (messageId: string, feedback: Feedbacktype) => {
     await updateFeedback({ url: `/messages/${messageId}/feedbacks`, body: { rating: feedback.rating } })
     const newChatList = chatList.map((item) => {
@@ -666,7 +684,10 @@ const Main: FC<IMainProps> = () => {
 
   if (appUnavailable) { return <AppUnavailable isUnknownReason={isUnknownReason} errMessage={!hasSetAppConfig ? 'Please set APP_ID and API_KEY in config/index.tsx' : ''} /> }
 
-  if (!APP_ID || !APP_INFO || !promptConfig) { return <Loading type='app' /> }
+  if (!APP_ID || !APP_INFO || !promptConfig || !languageReady) { return <Loading type='app' /> }
+
+  // 自动进入导航咨询之前不渲染开场界面，沿用加载态
+  if (!hasSetInputs) { return <Loading type='app' /> }
 
   return (
     <div className='bg-gray-100'>
@@ -695,7 +716,6 @@ const Main: FC<IMainProps> = () => {
             siteInfo={APP_INFO}
             promptConfig={promptConfig}
             onStartChat={handleStartChat}
-            onStartChatAndSend={handleStartChatWithMessage}
             canEditInputs={canEditInputs}
             savedInputs={currInputs as Record<string, any>}
             onInputsChange={setCurrInputs}

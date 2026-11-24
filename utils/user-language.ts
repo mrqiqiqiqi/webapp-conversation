@@ -6,6 +6,9 @@ export type UserLanguage = 'zh' | 'en-US' | 'ru' | 'pt-BR' | 'tr' | 'pl'
 export const USER_LANGUAGE_KEY = 'user_language'
 export const USER_LANGUAGE_CHANGED_EVENT = 'user-language-changed'
 
+// 默认语言：未手动选择，且访问者 IP 所在国家没有对应语言时使用
+export const DEFAULT_USER_LANGUAGE: UserLanguage = 'en-US'
+
 export const USER_LANGUAGE_OPTIONS: { value: UserLanguage, label: string }[] = [
   { value: 'zh', label: '中文' },
   { value: 'en-US', label: 'English' },
@@ -18,32 +21,31 @@ export const USER_LANGUAGE_OPTIONS: { value: UserLanguage, label: string }[] = [
 export const isValidUserLanguage = (value: string | null | undefined): value is UserLanguage =>
   !!value && USER_LANGUAGE_OPTIONS.some(option => option.value === value)
 
-// 浏览器语言映射到支持的语言，未匹配时默认中文
-const localeToLanguage = (locale: string): UserLanguage => {
-  const name = (locale || '').toLowerCase()
-  if (name.startsWith('zh')) { return 'zh' }
-  if (name.startsWith('en')) { return 'en-US' }
-  if (name.startsWith('ru')) { return 'ru' }
-  if (name.startsWith('pt')) { return 'pt-BR' }
-  if (name.startsWith('tr')) { return 'tr' }
-  if (name.startsWith('pl')) { return 'pl' }
-  return 'zh'
+// 手动选择的语言保存在 localStorage
+const getStoredUserLanguage = (): UserLanguage | null => {
+  const stored = window.localStorage.getItem(USER_LANGUAGE_KEY)
+  return isValidUserLanguage(stored) ? stored : null
 }
 
+const notifyLanguageChanged = (language: UserLanguage) => {
+  window.dispatchEvent(new CustomEvent(USER_LANGUAGE_CHANGED_EVENT, { detail: language }))
+}
+
+// 按 IP 识别出的语言只保留在当前页面内，不写入 localStorage：手动选择始终优先，下次访问重新识别
+let detectedLanguage: UserLanguage | null = null
+
 export const getUserLanguage = (): UserLanguage => {
-  if (typeof window === 'undefined') { return 'zh' }
-  const stored = window.localStorage.getItem(USER_LANGUAGE_KEY)
-  if (isValidUserLanguage(stored)) { return stored }
-  return localeToLanguage(window.navigator.language || '')
+  if (typeof window === 'undefined') { return DEFAULT_USER_LANGUAGE }
+  return getStoredUserLanguage() || detectedLanguage || DEFAULT_USER_LANGUAGE
 }
 
 export const setUserLanguage = (language: UserLanguage) => {
   if (typeof window === 'undefined') { return }
   window.localStorage.setItem(USER_LANGUAGE_KEY, language)
-  window.dispatchEvent(new CustomEvent(USER_LANGUAGE_CHANGED_EVENT, { detail: language }))
+  notifyLanguageChanged(language)
 }
 
-// IP 国家码兜底映射：浏览器语言不在支持列表内时，按访问者所在国家推断
+// 访问者 IP 所在国家到语言的映射；未列出的国家使用默认语言
 const COUNTRY_TO_LANGUAGE: Record<string, UserLanguage> = {
   CN: 'zh',
   RU: 'ru',
@@ -52,33 +54,29 @@ const COUNTRY_TO_LANGUAGE: Record<string, UserLanguage> = {
   PL: 'pl',
 }
 
-const countryToLanguage = (country: string): UserLanguage => {
-  return COUNTRY_TO_LANGUAGE[country.toUpperCase()] || 'en-US'
-}
+const countryToLanguage = (country: string): UserLanguage =>
+  COUNTRY_TO_LANGUAGE[country.toUpperCase()] || DEFAULT_USER_LANGUAGE
 
-// 语言判定优先级：手动选择 > 浏览器语言 > IP 国家 > 中文。
-// 浏览器语言已可识别时不发请求；否则向前端服务要一次访问者国家（Vercel 自带请求头）。
-export const autoDetectLanguage = () => {
-  if (typeof window === 'undefined') { return }
-  if (window.localStorage.getItem(USER_LANGUAGE_KEY)) { return }
+// 语言判定优先级：手动选择 > 访问 IP 所在国家 > 默认语言。
+// 国家码由 /api/locale 从 Vercel 注入的请求头中读取；本地开发没有该请求头，使用默认语言。
+// 返回的 Promise 在识别结束时 resolve（包括失败和超时），调用方可据此等待识别完成后再使用语言。
+export const autoDetectLanguage = (): Promise<void> => {
+  if (typeof window === 'undefined' || getStoredUserLanguage()) { return Promise.resolve() }
 
-  const browserMatched = isValidUserLanguage(window.navigator.language)
-    || USER_LANGUAGE_OPTIONS.some(option => (window.navigator.language || '').toLowerCase().startsWith(option.value.toLowerCase().split('-')[0]))
-  if (browserMatched) { return }
-
-  fetch('/api/locale')
+  return fetch('/api/locale', { signal: AbortSignal.timeout(5000) })
     .then(res => res.json())
     .then(({ country }: { country?: string }) => {
-      if (window.localStorage.getItem(USER_LANGUAGE_KEY)) { return }
-      if (!country) { return }
-      setUserLanguage(countryToLanguage(country))
+      // 识别期间用户已手动选择时不再覆盖
+      if (getStoredUserLanguage() || !country) { return }
+      detectedLanguage = countryToLanguage(country)
+      notifyLanguageChanged(detectedLanguage)
     })
-    .catch(() => { /* 检测失败保持中文默认 */ })
+    .catch(() => { /* 识别失败或超时，保持默认语言 */ })
 }
 
-// 服务端渲染时先用固定值，挂载后再读真实值，避免水合不一致
+// 服务端渲染时先用默认语言，挂载后再读真实值，避免水合不一致
 export const useUserLanguage = (): [UserLanguage, (language: UserLanguage) => void] => {
-  const [language, setLanguageState] = useState<UserLanguage>('zh')
+  const [language, setLanguageState] = useState<UserLanguage>(DEFAULT_USER_LANGUAGE)
 
   useEffect(() => {
     setLanguageState(getUserLanguage())

@@ -5,11 +5,8 @@ import { useTranslation } from 'react-i18next'
 import TemplateVarPanel, { PanelTitle, VarOpBtnGroup } from '../value-panel'
 import FileUploaderInAttachmentWrapper from '../base/file-uploader-in-attachment'
 import s from './style.module.css'
-import { AppInfoComp, EditBtn, FootLogo, PromptTemplate } from './massive-component'
+import { AppInfoComp, ChatBtn, EditBtn, FootLogo, PromptTemplate } from './massive-component'
 import type { AppInfo, PromptConfig } from '@/types/app'
-import { useUserLanguage } from '@/utils/user-language'
-import { getProductLineLabel, getProductLineMessage, PRODUCT_LINES } from '@/utils/product-line'
-import type { ProductLine } from '@/utils/product-line'
 import Toast from '@/app/components/base/toast'
 import Select from '@/app/components/base/select'
 import { DEFAULT_VALUE_MAX_LEN } from '@/config'
@@ -24,8 +21,6 @@ export interface IWelcomeProps {
   siteInfo: AppInfo
   promptConfig: PromptConfig
   onStartChat: (inputs: Record<string, any>) => void
-  // 产品线入口：进入对话并自动发送该产品线的默认消息
-  onStartChatAndSend?: (inputs: Record<string, any>, message: string) => void
   canEditInputs: boolean
   savedInputs: Record<string, any>
   onInputsChange: (inputs: Record<string, any>) => void
@@ -37,13 +32,12 @@ const Welcome: FC<IWelcomeProps> = ({
   isPublicVersion,
   siteInfo,
   promptConfig,
-  onStartChatAndSend,
+  onStartChat,
   canEditInputs,
   savedInputs,
   onInputsChange,
 }) => {
   const { t } = useTranslation()
-  const [userLanguage] = useUserLanguage()
   const hasVar = promptConfig.prompt_variables.length > 0
   const [isFold, setIsFold] = useState<boolean>(true)
   const [inputs, setInputs] = useState<Record<string, any>>((() => {
@@ -199,35 +193,15 @@ const Welcome: FC<IWelcomeProps> = ({
     return true
   }
 
-  // 选择产品线：进入对话并自动发送该产品线的默认消息
-  const handleSelectProductLine = (line: ProductLine) => {
+  const handleChat = () => {
     if (!canChat()) { return }
 
-    const cleanedInputs = { ...inputs }
-    Object.keys(cleanedInputs).forEach((key) => {
-      if (!cleanedInputs[key])
-      { delete cleanedInputs[key] }
+    Object.keys(inputs).forEach((key) => {
+      if (!inputs[key])
+      { delete inputs[key] }
     })
 
-    onStartChatAndSend?.(cleanedInputs, getProductLineMessage(line, userLanguage))
-  }
-
-  const renderProductLines = (className?: string) => {
-    return (
-      <div className={`grid grid-cols-1 mobile:grid-cols-2 gap-3 ${className || ''}`}>
-        {PRODUCT_LINES.map(line => (
-          <button
-            key={line.key}
-            type='button'
-            className='flex items-center justify-center space-x-2 px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-sm font-medium text-gray-700 cursor-pointer hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600'
-            onClick={() => handleSelectProductLine(line)}
-          >
-            <span aria-hidden='true'>{line.icon}</span>
-            <span>{getProductLineLabel(line, userLanguage)}</span>
-          </button>
-        ))}
-      </div>
-    )
+    onStartChat(inputs)
   }
 
   const renderNoVarPanel = () => {
@@ -247,7 +221,7 @@ const Welcome: FC<IWelcomeProps> = ({
               </>
             }
           >
-            {renderProductLines()}
+            <ChatBtn onClick={handleChat} />
           </TemplateVarPanel>
         </div>
       )
@@ -260,7 +234,7 @@ const Welcome: FC<IWelcomeProps> = ({
           <AppInfoComp siteInfo={siteInfo} />
         }
       >
-        {renderProductLines()}
+        <ChatBtn onClick={handleChat} />
       </TemplateVarPanel>
     )
   }
@@ -274,7 +248,10 @@ const Welcome: FC<IWelcomeProps> = ({
         }
       >
         {renderInputs()}
-        {renderProductLines('mt-3 mobile:ml-0 tablet:ml-[128px]')}
+        <ChatBtn
+          className='mt-3 mobile:ml-0 tablet:ml-[128px]'
+          onClick={handleChat}
+        />
       </TemplateVarPanel>
     )
   }
