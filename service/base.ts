@@ -1,5 +1,6 @@
-import { API_PREFIX } from '@/config'
+import { API_KEY, API_MODE, API_PREFIX } from '@/config'
 import Toast from '@/app/components/base/toast'
+import { getDifyUser } from '@/utils/dify-user'
 import type { AnnotationReply, MessageEnd, MessageReplace, ThoughtItem } from '@/app/components/chat/type'
 import type { VisionFile } from '@/types/app'
 
@@ -15,9 +16,12 @@ const ContentType = {
 const baseOptions = {
   method: 'GET',
   mode: 'cors',
-  credentials: 'include', // always send cookies、HTTP Basic authentication.
+  // direct 直连 Dify 时跨域，不能携带凭据（CORS 回显 Origin 时不允许 credentials）
+  credentials: API_MODE === 'direct' ? 'omit' : 'include', // always send cookies、HTTP Basic authentication.
   headers: new Headers({
     'Content-Type': ContentType.json,
+    // direct 模式由浏览器直接携带应用 Key；proxy 模式由服务端代理注入
+    ...(API_MODE === 'direct' ? { Authorization: `Bearer ${API_KEY}` } : {}),
   }),
   redirect: 'follow',
 }
@@ -326,7 +330,8 @@ const baseFetch = (url: string, fetchOptions: any, { needAllResponseContent }: I
 
 export const upload = (fetchOptions: any): Promise<any> => {
   const urlPrefix = API_PREFIX
-  const urlWithPrefix = `${urlPrefix}/file-upload`
+  // 直连时走 Dify 官方上传接口路径；代理时走本服务的转发路由
+  const urlWithPrefix = `${urlPrefix}${API_MODE === 'direct' ? '/files/upload' : '/file-upload'}`
   const defaultOptions = {
     method: 'POST',
     url: `${urlWithPrefix}`,
@@ -336,15 +341,28 @@ export const upload = (fetchOptions: any): Promise<any> => {
     ...defaultOptions,
     ...fetchOptions,
   }
+  // 直连时代理路由不再代为追加用户标识，这里统一补上（proxy 模式由服务端追加，避免重复）
+  if (API_MODE === 'direct' && options.data instanceof FormData) { options.data.append('user', getDifyUser()) }
   return new Promise((resolve, reject) => {
     const xhr = options.xhr
     xhr.open(options.method, options.url)
     for (const key in options.headers) { xhr.setRequestHeader(key, options.headers[key]) }
+    if (API_MODE === 'direct') { xhr.setRequestHeader('Authorization', `Bearer ${API_KEY}`) }
 
-    xhr.withCredentials = true
+    xhr.withCredentials = API_MODE !== 'direct'
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
-        if (xhr.status === 200) { resolve({ id: xhr.response }) }
+        if (xhr.status === 200) {
+          // Dify 上传接口返回 JSON（含 id），代理路由返回裸 id 字符串，两者兼容
+          let id = xhr.response
+          try {
+            id = JSON.parse(xhr.response).id ?? xhr.response
+          }
+          catch {
+            // 代理模式返回裸 id，保持原样
+          }
+          resolve({ id })
+        }
         else { reject(xhr) }
       }
     }

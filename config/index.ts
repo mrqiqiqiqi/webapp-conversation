@@ -15,7 +15,12 @@ export const APP_INFO: AppInfo = {
 export const isShowPrompt = false
 export const promptTemplate = 'I want you to act as a javascript console.'
 
-export const API_PREFIX = '/api'
+// API 调用模式：proxy = 经由本服务的 /api/* 路由转发 Dify（默认，行为与原先一致）；
+// direct = 浏览器直连 Dify（用于绕开服务器机房到 Dify 的跨境路由问题）。
+export const API_MODE = `${process.env.NEXT_PUBLIC_API_MODE || 'proxy'}` === 'direct' ? 'direct' : 'proxy'
+
+// 请求前缀：proxy 模式走同源代理路由；direct 模式直接使用 Dify API 地址（已含 /v1）
+export const API_PREFIX = API_MODE === 'direct' ? API_URL : '/api'
 
 export const LOCALE_COOKIE_NAME = 'locale'
 
