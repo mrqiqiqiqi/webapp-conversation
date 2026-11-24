@@ -21,7 +21,7 @@ import { userInputsFormToPromptVariables } from '@/utils/prompt'
 import { getUserLanguage, useUserLanguage, autoDetectLanguage, USER_LANGUAGE_KEY } from '@/utils/user-language'
 import { getWelcomeMessage, getSuggestedQuestions } from '@/utils/welcome-message'
 import AppUnavailable from '@/app/components/app-unavailable'
-import { API_KEY, APP_ID, APP_INFO, CHANNEL_NO, CHANNEL_VAR, isShowPrompt, promptTemplate } from '@/config'
+import { API_KEY, APP_ID, APP_INFO, CHANNEL_NO, CHANNEL_VAR, isShowPrompt, PRODUCT_LINE, PRODUCT_LINE_VAR, promptTemplate } from '@/config'
 import type { Annotation as AnnotationType } from '@/types/log'
 import { addFileInfos, sortAgentSorts } from '@/utils/tools'
 
@@ -390,9 +390,10 @@ const Main: FC<IMainProps> = () => {
         else { toServerInputs[key] = value }
       })
     }
-    // 每次发消息都带上当前选择的语言和渠道号，切换立即生效
+    // 每次发消息都带上当前选择的语言、渠道号和产品线，切换立即生效
     toServerInputs.user_language = getUserLanguage()
     toServerInputs[CHANNEL_VAR] = CHANNEL_NO
+    toServerInputs[PRODUCT_LINE_VAR] = PRODUCT_LINE
 
     const data: Record<string, any> = {
       inputs: toServerInputs,
@@ -645,7 +646,7 @@ const Main: FC<IMainProps> = () => {
   // 进入页面或新建对话时不显示选择界面：初始化完成且处于新会话未开始状态时，直接进入对话
   const hasAutoEnteredRef = useRef(false)
   useEffect(() => {
-    if (!inited) { return }
+    if (!inited || !languageReady) { return }
 
     // 已进入对话后重置标记，下次新建对话时再次自动进入
     if (hasSetInputs) {
@@ -656,7 +657,7 @@ const Main: FC<IMainProps> = () => {
     if (hasAutoEnteredRef.current) { return }
     hasAutoEnteredRef.current = true
     handleStartChat({})
-  }, [inited, hasSetInputs])
+  }, [inited, languageReady, hasSetInputs])
 
   const handleFeedback = async (messageId: string, feedback: Feedbacktype) => {
     await updateFeedback({ url: `/messages/${messageId}/feedbacks`, body: { rating: feedback.rating } })

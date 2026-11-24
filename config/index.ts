@@ -24,3 +24,8 @@ export const DEFAULT_VALUE_MAX_LEN = 48
 // 渠道号：随每条消息写入 inputs，变量名可通过 NEXT_PUBLIC_CHANNEL_VAR 对齐 Dify 开始节点
 export const CHANNEL_VAR = `${process.env.NEXT_PUBLIC_CHANNEL_VAR || 'channel_no'}`
 export const CHANNEL_NO = `${process.env.NEXT_PUBLIC_CHANNEL_NO || '6'}`
+
+// 产品线：本页面面向的产品线，随每条消息写入 inputs，对话流中不出现，用户无感知。
+// Dify 开始节点需建同名变量并在分类器/提示词中引用才会生效；改做其他产品线页面时通过 NEXT_PUBLIC_PRODUCT_LINE 覆盖。
+export const PRODUCT_LINE_VAR = `${process.env.NEXT_PUBLIC_PRODUCT_LINE_VAR || 'product_line'}`
+export const PRODUCT_LINE = `${process.env.NEXT_PUBLIC_PRODUCT_LINE || '导航'}`
