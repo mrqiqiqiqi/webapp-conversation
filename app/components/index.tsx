@@ -34,7 +34,6 @@ const Main: FC<IMainProps> = () => {
   const media = useBreakpoints()
   const isMobile = media === MediaType.mobile
   const hasSetAppConfig = APP_ID && API_KEY
-
   /*
   * app info
   */
@@ -688,7 +687,8 @@ const Main: FC<IMainProps> = () => {
 
   if (appUnavailable) { return <AppUnavailable isUnknownReason={isUnknownReason} errMessage={!hasSetAppConfig ? 'Please set APP_ID and API_KEY in config/index.tsx' : ''} /> }
 
-  if (!APP_ID || !APP_INFO || !promptConfig || !languageReady) { return <Loading type='app' /> }
+  // 宽度未知（服务端首屏/水合首帧）时先渲染加载态，避免按 pc 布局渲染出错乱的首屏
+  if (media === null || !APP_ID || !APP_INFO || !promptConfig || !languageReady) { return <Loading type='app' /> }
 
   // 自动进入导航咨询之前不渲染开场界面，沿用加载态
   if (!hasSetInputs) { return <Loading type='app' /> }
